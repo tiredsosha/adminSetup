@@ -29,7 +29,7 @@ const (
 	NodeURL  = "https://nodejs.org/dist/v20.20.0/node-v20.20.0-x64.msi"
 
 	MongoName = "MongoDB"
-	MongoURL  = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-8.2.5-signed.msi"
+	MongoURL  = "http://tiredsosha.ru/updates/mongodb.msi"
 
 	VSCodeName = "VS Code"
 	VSCodeURL  = "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user"
