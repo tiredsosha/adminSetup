@@ -4,25 +4,24 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
-
-const EmbeddedGitToken = "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"
 
 func Ensure(repoURL, branch, dir string) error {
 	branchRef := plumbing.NewBranchReferenceName(branch)
 
-	var auth *http.BasicAuth
-
-	if EmbeddedGitToken != "" {
-		auth = &http.BasicAuth{
-			Username: "x-access-token",
-			Password: EmbeddedGitToken,
-		}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("find user home directory: %w", err)
+	}
+	auth, err := ssh.NewPublicKeysFromFile("git", filepath.Join(homeDir, ".ssh", "id_ed25519"), "")
+	if err != nil {
+		return fmt.Errorf("load SSH private key: %w", err)
 	}
 
 	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
@@ -36,6 +35,8 @@ func Ensure(repoURL, branch, dir string) error {
 			Progress:      os.Stdout,
 		})
 		return err
+	} else if err != nil {
+		return fmt.Errorf("check repository directory: %w", err)
 	}
 
 	fmt.Printf("Updating %s (%s)\n", dir, branch)
@@ -45,7 +46,24 @@ func Ensure(repoURL, branch, dir string) error {
 		return fmt.Errorf("folder exists but not a git repo: %w", err)
 	}
 
-	// fetch origin refs
+	cfg, err := r.Config()
+	if err != nil {
+		return fmt.Errorf("read repository config: %w", err)
+	}
+	remote, exists := cfg.Remotes["origin"]
+	if !exists {
+		_, err = r.CreateRemote(&config.RemoteConfig{
+			Name: "origin",
+			URLs: []string{repoURL},
+		})
+	} else {
+		remote.URLs = []string{repoURL}
+		err = r.SetConfig(cfg)
+	}
+	if err != nil {
+		return fmt.Errorf("configure origin remote: %w", err)
+	}
+
 	err = r.Fetch(&git.FetchOptions{
 		Auth:     auth,
 		Progress: os.Stdout,
@@ -64,7 +82,6 @@ func Ensure(repoURL, branch, dir string) error {
 		return err
 	}
 
-	// ensure branch checked out
 	_ = wt.Checkout(&git.CheckoutOptions{
 		Branch: branchRef,
 		Force:  true,
